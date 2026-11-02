@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -18,15 +19,30 @@ pipeline {
                 echo 'Building Docker image'
 
                 sh 'docker build -t $IMAGE_NAME:$BUILD_NUMBER .'
-
                 sh 'docker tag $IMAGE_NAME:$BUILD_NUMBER $IMAGE_NAME:latest'
+            }
+        }
+
+        stage('Trivy Image Scan') {
+            steps {
+                echo 'Scanning Docker image for vulnerabilities'
+
+                sh '''
+                    docker run --rm \
+                      -v /var/run/docker.sock:/var/run/docker.sock \
+                      aquasec/trivy:latest image \
+                      --scanners vuln \
+                      --severity HIGH,CRITICAL \
+                      --exit-code 1 \
+                      $IMAGE_NAME:$BUILD_NUMBER
+                '''
             }
         }
     }
 
     post {
         success {
-            echo 'Docker image built successfully!'
+            echo 'Docker image built and scanned successfully!'
         }
 
         failure {
