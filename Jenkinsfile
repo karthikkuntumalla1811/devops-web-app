@@ -28,13 +28,18 @@ pipeline {
                 echo 'Scanning Docker image for vulnerabilities'
 
                 sh '''
+                    docker save $IMAGE_NAME:$BUILD_NUMBER -o image.tar
+                '''
+
+                sh '''
                     docker run --rm \
-                      -v /var/run/docker.sock:/var/run/docker.sock \
+                      -v "$WORKSPACE:/work" \
                       aquasec/trivy:latest image \
+                      --timeout 15m \
+                      --input /work/image.tar \
                       --scanners vuln \
                       --severity HIGH,CRITICAL \
-                      --exit-code 1 \
-                      $IMAGE_NAME:$BUILD_NUMBER
+                      --exit-code 1
                 '''
             }
         }
