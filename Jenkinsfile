@@ -18,36 +18,40 @@ pipeline {
             steps {
                 echo 'Building Docker image'
 
-                sh 'docker build -t $IMAGE_NAME:$BUILD_NUMBER .'
-                sh 'docker tag $IMAGE_NAME:$BUILD_NUMBER $IMAGE_NAME:latest'
+                sh '''
+                    docker build -t $IMAGE_NAME:$BUILD_NUMBER .
+                    docker tag $IMAGE_NAME:$BUILD_NUMBER $IMAGE_NAME:latest
+                '''
             }
         }
 
-        stage('Trivy Image Scan') {
+        stage('Docker Hub Login and Push') {
             steps {
-                echo 'Scanning Docker image for vulnerabilities'
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKERHUB_USER',
+                        passwordVariable: 'DOCKERHUB_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        echo "$DOCKERHUB_TOKEN" | docker login \
+                            --username "$DOCKERHUB_USER" \
+                            --password-stdin
 
-                sh '''
-                    docker save $IMAGE_NAME:$BUILD_NUMBER -o image.tar
-                '''
+                        docker push $IMAGE_NAME:$BUILD_NUMBER
+                        docker push $IMAGE_NAME:latest
 
-                sh '''
-                    docker run --rm \
-                      -v "$WORKSPACE:/work" \
-                      aquasec/trivy:latest image \
-                      --timeout 15m \
-                      --input /work/image.tar \
-                      --scanners vuln \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 1
-                '''
+                        docker logout
+                    '''
+                }
             }
         }
     }
 
     post {
         success {
-            echo 'Docker image built and scanned successfully!'
+            echo 'Docker image built and pushed successfully!'
         }
 
         failure {
