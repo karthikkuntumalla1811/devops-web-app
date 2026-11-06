@@ -63,7 +63,7 @@ pipeline {
                         set +x
 						TOKEN_HASH=$(printf '%s' "$K8S_TOKEN" | tr -d '[:space:]' | sha256sum | awk '{print $1}')
 
-                         if [ "$TOKEN_HASH" = "c963d84897c9d315226a6a10911a5aba212bf1c25b563826363d415028d029a4" ]; then
+                         if [ "$TOKEN_HASH" = "9b2bf2771b1249b65d08343890d35cec2c47184691462ed8f2a218115ce6adb5" ]; then
                                  echo "Jenkins credential matches PowerShell token"
                           else
                                 echo "Jenkins credential does NOT match PowerShell token"
