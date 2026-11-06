@@ -1,4 +1,3 @@
-
 pipeline {
     agent any
 
@@ -47,11 +46,55 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'k8s-token',
+                        variable: 'K8S_TOKEN'
+                    ),
+                    file(
+                        credentialsId: 'k8s-ca',
+                        variable: 'K8S_CA_FILE'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+
+                        kubectl \
+                          --server=https://host.docker.internal:61178 \
+                          --tls-server-name=localhost \
+                          --certificate-authority="$K8S_CA_FILE" \
+                          --token="$K8S_TOKEN" \
+                          apply -f k8s/dev.yaml
+
+                        kubectl \
+                          --server=https://host.docker.internal:61178 \
+                          --tls-server-name=localhost \
+                          --certificate-authority="$K8S_CA_FILE" \
+                          --token="$K8S_TOKEN" \
+                          set image deployment/devops-web-app \
+                          web-app=$IMAGE_NAME:$BUILD_NUMBER \
+                          -n devops-dev
+
+                        kubectl \
+                          --server=https://host.docker.internal:61178 \
+                          --tls-server-name=localhost \
+                          --certificate-authority="$K8S_CA_FILE" \
+                          --token="$K8S_TOKEN" \
+                          rollout status deployment/devops-web-app \
+                          -n devops-dev \
+                          --timeout=180s
+                    '''
+                }
+            }
+        }
     }
 
     post {
         success {
-            echo 'Docker image built and pushed successfully!'
+            echo 'Docker image built, pushed and deployed successfully!'
         }
 
         failure {
