@@ -67,7 +67,7 @@ pipeline {
                           --tls-server-name=localhost \
                           --certificate-authority="$K8S_CA_FILE" \
                           --token="$K8S_TOKEN" \
-                          apply -f k8s/dev.yaml
+                          auth can-i create deployments -n devops-dev
 
                         kubectl \
                           --server=https://host.docker.internal:61178 \
