@@ -1,0 +1,54 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-web-app
+  namespace: devops-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: devops-web-app
+  template:
+    metadata:
+      labels:
+        app: devops-web-app
+    spec:
+      containers:
+        - name: web-app
+          image: mokshaskanda1410/devops-web-app:12
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-web-app
+  namespace: devops-dev
+spec:
+  type: ClusterIP
+  selector:
+    app: devops-web-app
+  ports:
+    - port: 80
+      targetPort: 5000
