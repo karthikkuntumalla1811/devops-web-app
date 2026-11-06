@@ -61,6 +61,12 @@ pipeline {
                 ]) {
                     sh '''
                         set +x
+                        if [ -n "$K8S_TOKEN" ]; then
+                            echo "Kubernetes token is loaded"
+                        else
+                            echo "Kubernetes token is missing"
+                            exit 1
+                        fi
 
                         kubectl \
                           --server=https://host.docker.internal:61178 \
