@@ -91,7 +91,7 @@ pipeline {
                           --token="$K8S_TOKEN" \
                           rollout status deployment/devops-web-app \
                           -n devops-dev \
-                          --timeout=180s
+                          --timeout=300s
                     '''
                 }
             }
