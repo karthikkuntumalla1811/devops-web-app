@@ -48,66 +48,48 @@ pipeline {
         }
 
         stage('Deploy to Kubernetes') {
-            steps {
-                withCredentials([
-                    string(
-                        credentialsId: 'k8s-token',
-                        variable: 'K8S_TOKEN'
-                    ),
-                    file(
-                        credentialsId: 'k8s-ca',
-                        variable: 'K8S_CA_FILE'
-                    )
-                ]) {
-                    sh '''
-                        set +x
-						TOKEN_HASH=$(printf '%s' "$K8S_TOKEN" | tr -d '[:space:]' | sha256sum | awk '{print $1}')
+    steps {
+        withCredentials([
+            string(
+                credentialsId: 'k8s-jenkins-token',
+                variable: 'K8S_TOKEN'
+            )
+        ]) {
+            sh '''
+                set +x
 
-                         if [ "$TOKEN_HASH" = "9b2bf2771b1249b65d08343890d35cec2c47184691462ed8f2a218115ce6adb5" ]; then
-                                 echo "Jenkins credential matches PowerShell token"
-                          else
-                                echo "Jenkins credential does NOT match PowerShell token"
-                                exit 1
-						fi
+                echo "Checking Kubernetes authentication..."
 
-                        if [ -n "$K8S_TOKEN" ]; then
-                            echo "Kubernetes token is loaded"
-                        else
-                            echo "Kubernetes token is missing"
-                            exit 1
-                        fi
+                kubectl \
+                  --server=https://host.docker.internal:58351 \
+                  --insecure-skip-tls-verify=true \
+                  --token="$K8S_TOKEN" \
+                  auth can-i create deployments -n devops-dev
 
-                        kubectl \
-                          --server=https://host.docker.internal:61178 \
-                          --tls-server-name=localhost \
-                          --certificate-authority="$K8S_CA_FILE" \
-                          --token="$K8S_TOKEN" \
-                          auth can-i create deployments -n devops-dev
+                echo "Updating application image..."
 
-                        kubectl \
-                          --server=https://host.docker.internal:61178 \
-                          --tls-server-name=localhost \
-                          --certificate-authority="$K8S_CA_FILE" \
-                          --token="$K8S_TOKEN" \
-                          set image deployment/devops-web-app \
-                          web-app=$IMAGE_NAME:$BUILD_NUMBER \
-                          -n devops-dev
+                kubectl \
+                  --server=https://host.docker.internal:58351 \
+                  --insecure-skip-tls-verify=true \
+                  --token="$K8S_TOKEN" \
+                  set image deployment/devops-web-app \
+                  web-app=$IMAGE_NAME:$BUILD_NUMBER \
+                  -n devops-dev
 
-                        kubectl \
-                          --server=https://host.docker.internal:61178 \
-                          --tls-server-name=localhost \
-                          --certificate-authority="$K8S_CA_FILE" \
-                          --token="$K8S_TOKEN" \
-                          rollout status deployment/devops-web-app \
-                          -n devops-dev \
-                          --timeout=300s
-                    '''
-                }
-            }
+                echo "Waiting for rollout..."
+
+                kubectl \
+                  --server=https://host.docker.internal:58351 \
+                  --insecure-skip-tls-verify=true \
+                  --token="$K8S_TOKEN" \
+                  rollout status deployment/devops-web-app \
+                  -n devops-dev \
+                  --timeout=300s
+            '''
         }
     }
-
-    post {
+}
+     post {
         success {
             echo 'Docker image built, pushed and deployed successfully!'
         }
