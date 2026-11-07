@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -34,6 +35,8 @@ pipeline {
                     )
                 ]) {
                     sh '''
+                        set +x
+
                         echo "$DOCKERHUB_TOKEN" | docker login \
                             --username "$DOCKERHUB_USER" \
                             --password-stdin
@@ -48,48 +51,60 @@ pipeline {
         }
 
         stage('Deploy to Kubernetes') {
-    steps {
-        withCredentials([
-            string(
-                credentialsId: 'k8s-jenkins-token',
-                variable: 'K8S_TOKEN'
-            )
-        ]) {
-            sh '''
-                set +x
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'k8s-jenkins-token',
+                        variable: 'K8S_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+                        set -eu
 
-                echo "Checking Kubernetes authentication..."
+                        echo "Checking Kubernetes authentication..."
 
-                kubectl \
-                  --server=https://host.docker.internal:58351 \
-                  --insecure-skip-tls-verify=true \
-                  --token="$K8S_TOKEN" \
-                  auth can-i create deployments -n devops-dev
+                        CAN_DEPLOY=$(kubectl \
+                          --server=https://host.docker.internal:58351 \
+                          --insecure-skip-tls-verify=true \
+                          --token="$K8S_TOKEN" \
+                          auth can-i create deployments -n devops-dev)
 
-                echo "Updating application image..."
+                        if [ "$CAN_DEPLOY" != "yes" ]; then
+                            echo "Jenkins does not have deployment permissions"
+                            exit 1
+                        fi
 
-                kubectl \
-                  --server=https://host.docker.internal:58351 \
-                  --insecure-skip-tls-verify=true \
-                  --token="$K8S_TOKEN" \
-                  set image deployment/devops-web-app \
-                  web-app=$IMAGE_NAME:$BUILD_NUMBER \
-                  -n devops-dev
+                        echo "Kubernetes authentication successful"
 
-                echo "Waiting for rollout..."
+                        echo "Updating application image..."
 
-                kubectl \
-                  --server=https://host.docker.internal:58351 \
-                  --insecure-skip-tls-verify=true \
-                  --token="$K8S_TOKEN" \
-                  rollout status deployment/devops-web-app \
-                  -n devops-dev \
-                  --timeout=300s
-            '''
+                        kubectl \
+                          --server=https://host.docker.internal:58351 \
+                          --insecure-skip-tls-verify=true \
+                          --token="$K8S_TOKEN" \
+                          set image deployment/devops-web-app \
+                          web-app=$IMAGE_NAME:$BUILD_NUMBER \
+                          -n devops-dev
+
+                        echo "Waiting for Kubernetes rollout..."
+
+                        kubectl \
+                          --server=https://host.docker.internal:58351 \
+                          --insecure-skip-tls-verify=true \
+                          --token="$K8S_TOKEN" \
+                          rollout status deployment/devops-web-app \
+                          -n devops-dev \
+                          --timeout=300s
+
+                        echo "Kubernetes deployment successful"
+                    '''
+                }
+            }
         }
     }
-}
-     post {
+
+    post {
         success {
             echo 'Docker image built, pushed and deployed successfully!'
         }
